@@ -23,15 +23,14 @@ import {
   getDownloadURL
 } from 'firebase/storage';
 
-// Firebaseプロジェクトの設定情報をここに追加してください
-// .envファイルから読み込む場合は、Viteの設定をしてください
+// Firebaseプロジェクトの設定をここに追加
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBvHNVYiPDtm1K4hKjzFAEenjjPGj6836w",
+  authDomain: "photoshare-566d9.firebaseapp.com",
+  projectId: "photoshare-566d9",
+  storageBucket: "photoshare-566d9.firebasestorage.app",
+  messagingSenderId: "40141009873",
+  appId: "1:40141009873:web:37d9638196fd3be9ff26f0"
 };
 
 // Firebaseアプリを初期化
@@ -60,6 +59,10 @@ const Login = ({ setUser }) => {
   // 新規登録処理
   const handleRegister = async () => {
     try {
+      if (password.length < 6) {
+        setMessage("パスワードは6文字以上にする必要があります。");
+        return;
+      }
       await createUserWithEmailAndPassword(auth, email, password);
       setMessage("新規登録しました！");
     } catch (error) {
@@ -69,21 +72,22 @@ const Login = ({ setUser }) => {
   };
 
   return (
-    <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
-      <h2>ログイン / 新規登録</h2>
+    <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', width: '300px', backgroundColor: '#fff' }}>
+      <h2 style={{color:"black"}}>ログイン / 新規登録</h2>
       <input
         type="email"
         placeholder="メールアドレス"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        style={{ display: 'block', margin: '10px 0' }}
+        style={{ display: 'block', margin: '10px 0', width: '100%', padding: '8px' }}
       />
       <input
         type="password"
-        placeholder="パスワード"
+        placeholder="パスワード（6文字以上）"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        style={{ display: 'block', margin: '10px 0' }}
+        minLength={6}
+        style={{ display: 'block', margin: '10px 0', width: '100%', padding: '8px' }}
       />
       <button onClick={handleLogin} style={{ margin: '5px' }}>ログイン</button>
       <button onClick={handleRegister} style={{ margin: '5px' }}>新規登録</button>
@@ -221,22 +225,31 @@ function App() {
   };
 
   return (
-    <div style={{ textAlign: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
-      <h1 style={{ color: '#333' }}>📸 Photo Share App</h1>
-      {user ? (
-        <>
-          <p>ログイン中: <b>{user.email}</b></p>
-          <button onClick={handleLogout} style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer', borderRadius: '5px', border: 'none', backgroundColor: '#f44336', color: 'white' }}>
-            ログアウト
-          </button>
-          <hr style={{ margin: '20px 0' }} />
-          <UploadPost user={user} />
-          <hr style={{ margin: '20px 0' }} />
-          <Feed />
-        </>
-      ) : (
-        <Login setUser={setUser} />
-      )}
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '100vh',
+      backgroundColor: '#222'
+    }}>
+      <h1 style={{ color: '#fff', textAlign: 'center' }}>📸 Photo Share App</h1>
+      <div style={{ backgroundColor: '#2e2e2e', padding: '40px', borderRadius: '12px' }}>
+        {user ? (
+          <>
+            <p style={{ color: '#fff' }}>ログイン中: <b>{user.email}</b></p>
+            <button onClick={handleLogout} style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer', borderRadius: '5px', border: 'none', backgroundColor: '#f44336', color: 'white' }}>
+              ログアウト
+            </button>
+            <hr style={{ margin: '20px 0', borderColor: '#444' }} />
+            <UploadPost user={user} />
+            <hr style={{ margin: '20px 0', borderColor: '#444' }} />
+            <Feed />
+          </>
+        ) : (
+          <Login setUser={setUser} />
+        )}
+      </div>
     </div>
   );
 }
