@@ -12,7 +12,6 @@ import {
   collection,
   addDoc,
   query,
-  orderBy,
   onSnapshot,
   serverTimestamp
 } from 'firebase/firestore';
@@ -23,29 +22,23 @@ import {
   getDownloadURL
 } from 'firebase/storage';
 
-// Firebaseプロジェクトの設定をここに追加
-const firebaseConfig = {
-  apiKey: "AIzaSyBvHNVYiPDtm1K4hKjzFAEenjjPGj6836w",
-  authDomain: "photoshare-566d9.firebaseapp.com",
-  projectId: "photoshare-566d9",
-  storageBucket: "photoshare-566d9.firebasestorage.app",
-  messagingSenderId: "40141009873",
-  appId: "1:40141009873:web:37d9638196fd3be9ff26f0"
-};
+// Firebase configuration. DO NOT EDIT.
+// This is automatically provided by the Canvas environment.
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
-// Firebaseアプリを初期化
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-// ユーザー認証コンポーネント
-const Login = ({ setUser }) => {
+// Authentication UI component
+const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
 
-  // ログイン処理
+  // Handle user login
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -56,7 +49,7 @@ const Login = ({ setUser }) => {
     }
   };
 
-  // 新規登録処理
+  // Handle user registration
   const handleRegister = async () => {
     try {
       if (password.length < 6) {
@@ -72,14 +65,13 @@ const Login = ({ setUser }) => {
   };
 
   return (
-    <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', width: '300px', backgroundColor: '#fff' }}>
-      <h2 style={{color:"black"}}>ログイン / 新規登録</h2>
+    <div className="login-container">
+      <h2>ログイン / 新規登録</h2>
       <input
         type="email"
         placeholder="メールアドレス"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        style={{ display: 'block', margin: '10px 0', width: '100%', padding: '8px' }}
       />
       <input
         type="password"
@@ -87,16 +79,17 @@ const Login = ({ setUser }) => {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         minLength={6}
-        style={{ display: 'block', margin: '10px 0', width: '100%', padding: '8px' }}
       />
-      <button onClick={handleLogin} style={{ margin: '5px' }}>ログイン</button>
-      <button onClick={handleRegister} style={{ margin: '5px' }}>新規登録</button>
-      {message && <p style={{ color: 'red' }}>{message}</p>}
+      <div className="button-group">
+        <button onClick={handleLogin}>ログイン</button>
+        <button onClick={handleRegister}>新規登録</button>
+      </div>
+      {message && <p className="message">{message}</p>}
     </div>
   );
 };
 
-// 写真アップロードコンポーネント
+// Photo upload component
 const UploadPost = ({ user }) => {
   const [imageFile, setImageFile] = useState(null);
   const [caption, setCaption] = useState('');
@@ -124,12 +117,13 @@ const UploadPost = ({ user }) => {
     const storageRef = ref(storage, `images/${Date.now()}_${imageFile.name}`);
 
     try {
-      // 1. Firebase Storageに画像をアップロード
+      // 1. Upload image to Firebase Storage
       const snapshot = await uploadBytes(storageRef, imageFile);
       const downloadURL = await getDownloadURL(snapshot.ref);
 
-      // 2. Firestoreに投稿情報を保存
-      await addDoc(collection(db, 'posts'), {
+      // 2. Save post information to Firestore
+      const postsCollection = collection(db, 'posts');
+      await addDoc(postsCollection, {
         userId: user.uid,
         imageUrl: downloadURL,
         caption: caption,
@@ -148,7 +142,7 @@ const UploadPost = ({ user }) => {
   };
 
   return (
-    <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '20px' }}>
+    <div className="upload-container">
       <h2>新しい投稿</h2>
       <input type="file" onChange={handleFileChange} />
       <input
@@ -156,55 +150,58 @@ const UploadPost = ({ user }) => {
         placeholder="キャプションを入力"
         value={caption}
         onChange={(e) => setCaption(e.target.value)}
-        style={{ display: 'block', margin: '10px 0' }}
       />
-      <button onClick={handleUpload} disabled={isUploading}>
+      <button
+        onClick={handleUpload}
+        disabled={isUploading}
+      >
         {isUploading ? 'アップロード中...' : '投稿する'}
       </button>
-      {message && <p>{message}</p>}
+      {message && <p className="message">{message}</p>}
     </div>
   );
 };
 
-// 投稿フィードコンポーネント
+// Post feed component
 const Feed = () => {
   const [posts, setPosts] = useState([]);
 
   useEffect(() => {
-    // Firestoreから投稿をリアルタイムで取得
-    const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+    // Get posts from Firestore in real-time
+    // NOTE: This uses onSnapshot for real-time updates.
+    const postsQuery = query(collection(db, 'posts'));
     const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
       const fetchedPosts = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       }));
+      // Sort posts by creation time in memory
+      fetchedPosts.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
       setPosts(fetchedPosts);
     });
 
-    // クリーンアップ
+    // Cleanup function
     return () => unsubscribe();
   }, []);
 
   return (
-    <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '20px' }}>
+    <div className="feed-container">
       <h2>投稿フィード</h2>
       {posts.length > 0 ? (
         posts.map((post) => (
-          <div key={post.id} style={{ border: '1px solid #eee', margin: '10px', padding: '10px', borderRadius: '8px' }}>
+          <div key={post.id} className="post-card">
             <img
               src={post.imageUrl}
               alt={post.caption}
-              style={{ width: '100%', maxWidth: '400px', height: 'auto', borderRadius: '4px' }}
             />
-            <p style={{ textAlign: 'left', fontWeight: 'bold' }}>
-              {/* FirebaseのUIDからユーザー名を取得する場合は別途実装が必要 */}
+            <p className="user-info">
               {post.userId ? `User: ${post.userId.substring(0, 6)}...` : 'Unknown User'}
             </p>
-            <p style={{ textAlign: 'left' }}>{post.caption}</p>
+            <p className="caption">{post.caption}</p>
           </div>
         ))
       ) : (
-        <p>まだ投稿がありません。</p>
+        <p className="no-posts">まだ投稿がありません。</p>
       )}
     </div>
   );
@@ -214,9 +211,11 @@ function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // Listen for auth state changes
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
+    // Clean up listener on component unmount
     return () => unsubscribe();
   }, []);
 
@@ -225,29 +224,225 @@ function App() {
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100vh',
-      backgroundColor: '#222'
-    }}>
-      <h1 style={{ color: '#fff', textAlign: 'center' }}>📸 Photo Share App</h1>
-      <div style={{ backgroundColor: '#2e2e2e', padding: '40px', borderRadius: '12px' }}>
+    <div className="app-container">
+      <style>
+        {`
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #222;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+          }
+
+          .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+
+          .main-content {
+            background-color: #2e2e2e;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+          }
+
+          h1 {
+            color: #fff;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+          }
+
+          h2 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 1rem;
+          }
+
+          .user-info-container {
+            background-color: #333;
+            padding: 1rem;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+          }
+
+          .user-info-text {
+            color: #fff;
+          }
+
+          .logout-button {
+            background-color: #f44336;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+          }
+
+          .logout-button:hover {
+            background-color: #d32f2f;
+          }
+
+          .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+          }
+
+          @media (min-width: 768px) {
+            .main-content {
+              flex-direction: row;
+              gap: 40px;
+            }
+            .content-wrapper {
+              flex-direction: row;
+            }
+          }
+
+          .login-container, .upload-container, .feed-container {
+            background-color: #333;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+          }
+
+          .login-container {
+            max-width: 400px;
+            margin: 0 auto;
+            text-align: center;
+          }
+
+          .login-container h2 {
+            color: #fff;
+          }
+
+          input[type="email"], input[type="password"], input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background-color: #555;
+            color: #fff;
+            box-sizing: border-box;
+          }
+
+          button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+          }
+
+          button:hover {
+            background-color: #0056b3;
+          }
+
+          button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+          }
+
+          .button-group {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 10px;
+          }
+
+          .message, .no-posts {
+            color: #f00;
+            text-align: center;
+            margin-top: 10px;
+          }
+
+          .upload-container {
+            margin-bottom: 20px;
+          }
+          
+          .feed-container {
+            overflow-y: auto;
+            max-height: 500px; /* Adjust height to fit the viewport */
+          }
+
+          .post-card {
+            background-color: #444;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          }
+
+          .post-card img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 10px;
+          }
+
+          .user-info {
+            font-weight: bold;
+            color: #ccc;
+            margin-bottom: 5px;
+          }
+
+          .caption {
+            color: #eee;
+            margin: 0;
+          }
+        `}
+      </style>
+      <div className="main-content">
+        <h1 className="title-container">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M14.5 3a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h13zM13 5.5v5a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 2 10.5v-5A1.5 1.5 0 0 1 3.5 4h8A1.5 1.5 0 0 1 13 5.5zM12 5.5a.5.5 0 0 0-1 0v5a.5.5 0 0 0 1 0v-5zM11 5.5a.5.5 0 0 0-1 0v5a.5.5 0 0 0 1 0v-5zM10 5.5a.5.5 0 0 0-1 0v5a.5.5 0 0 0 1 0v-5z"/>
+          </svg>
+          <span style={{ marginLeft: '10px' }}>Photo Share App</span>
+        </h1>
         {user ? (
-          <>
-            <p style={{ color: '#fff' }}>ログイン中: <b>{user.email}</b></p>
-            <button onClick={handleLogout} style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer', borderRadius: '5px', border: 'none', backgroundColor: '#f44336', color: 'white' }}>
-              ログアウト
-            </button>
-            <hr style={{ margin: '20px 0', borderColor: '#444' }} />
-            <UploadPost user={user} />
-            <hr style={{ margin: '20px 0', borderColor: '#444' }} />
-            <Feed />
-          </>
+          <div className="content-wrapper">
+            <div className="user-info-container">
+              <p className="user-info-text">
+                ログイン中: <b>{user.email}</b>
+              </p>
+              <button onClick={handleLogout} className="logout-button">
+                ログアウト
+              </button>
+            </div>
+            
+            <div className="upload-section">
+              <UploadPost user={user} />
+            </div>
+
+            <div className="feed-section">
+              <Feed />
+            </div>
+          </div>
         ) : (
-          <Login setUser={setUser} />
+          <Login />
         )}
       </div>
     </div>
