@@ -282,20 +282,15 @@ function App() {
       flexDirection: 'column',
       minHeight: '100vh',
       backgroundColor: '#222',
-      padding: '20px 0'
+      padding: '20px 0',
+      justifyContent: 'center',
+      alignItems: 'center'
     }}>
       <h1 style={{ color: '#fff', textAlign: 'center', margin: '20px 0' }}>📸 Photo Share App</h1>
       {user ? (
         <MainContent user={user} />
       ) : (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100%'
-        }}>
-          <Login />
-        </div>
+        <Login />
       )}
     </div>
   );
