@@ -6,13 +6,14 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  updateProfile // Firebase AuthからupdateProfileをインポート
+  updateProfile
 } from 'firebase/auth';
 import {
   getFirestore,
   collection,
   addDoc,
   query,
+  orderBy,
   onSnapshot,
   serverTimestamp
 } from 'firebase/firestore';
@@ -24,7 +25,7 @@ import {
 } from 'firebase/storage';
 import { format } from 'date-fns';
 
-// Firebaseプロジェクトの設定をここに追加
+// Firebaseプロジェクトの設定
 const firebaseConfig = {
   apiKey: "AIzaSyBvHNVYiPDtm1K4hKjzFAEenjjPGj6836w",
   authDomain: "photoshare-566d9.firebaseapp.com",
@@ -34,20 +35,20 @@ const firebaseConfig = {
   appId: "1:40141009873:web:37d9638196fd3be9ff26f0"
 };
 
-// Initialize Firebase
+// Firebaseアプリを初期化
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-// Authentication UI component
+// ユーザー認証コンポーネント
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState(''); // 新しく追加
+  const [displayName, setDisplayName] = useState('');
   const [message, setMessage] = useState('');
 
-  // Handle user login
+  // ログイン処理
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -58,7 +59,7 @@ const Login = () => {
     }
   };
 
-  // Handle user registration
+  // 新規登録処理
   const handleRegister = async () => {
     try {
       if (password.length < 6) {
@@ -79,10 +80,18 @@ const Login = () => {
     <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', width: '300px', backgroundColor: '#fff' }}>
       <h2 style={{color:"black"}}>ログイン / 新規登録</h2>
       <input
+        type="text"
+        placeholder="表示名（新規登録時のみ）"
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        style={{ display: 'block', margin: '10px 0', width: '100%', padding: '8px' }}
+      />
+      <input
         type="email"
         placeholder="メールアドレス"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+        style={{ display: 'block', margin: '10px 0', width: '100%', padding: '8px' }}
       />
       <input
         type="password"
@@ -90,17 +99,16 @@ const Login = () => {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         minLength={6}
+        style={{ display: 'block', margin: '10px 0', width: '100%', padding: '8px' }}
       />
-      <div className="button-group">
-        <button onClick={handleLogin}>ログイン</button>
-        <button onClick={handleRegister}>新規登録</button>
-      </div>
-      {message && <p className="message">{message}</p>}
+      <button onClick={handleLogin} style={{ margin: '5px' }}>ログイン</button>
+      <button onClick={handleRegister} style={{ margin: '5px' }}>新規登録</button>
+      {message && <p style={{ color: 'red' }}>{message}</p>}
     </div>
   );
 };
 
-// Photo upload component
+// 写真アップロードコンポーネント
 const UploadPost = ({ user }) => {
   const [imageFile, setImageFile] = useState(null);
   const [caption, setCaption] = useState('');
@@ -128,13 +136,12 @@ const UploadPost = ({ user }) => {
     const storageRef = ref(storage, `images/${Date.now()}_${imageFile.name}`);
 
     try {
-      // 1. Upload image to Firebase Storage
+      // 1. Firebase Storageに画像をアップロード
       const snapshot = await uploadBytes(storageRef, imageFile);
       const downloadURL = await getDownloadURL(snapshot.ref);
 
-      // 2. Save post information to Firestore
-      const postsCollection = collection(db, 'posts');
-      await addDoc(postsCollection, {
+      // 2. Firestoreに投稿情報を保存
+      await addDoc(collection(db, 'posts'), {
         userId: user.uid,
         displayName: user.displayName || '匿名ユーザー', // 投稿者の名前を追加
         imageUrl: downloadURL,
@@ -154,7 +161,7 @@ const UploadPost = ({ user }) => {
   };
 
   return (
-    <div className="upload-container">
+    <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '20px' }}>
       <h2>新しい投稿</h2>
       <input type="file" onChange={handleFileChange} />
       <input
@@ -162,58 +169,52 @@ const UploadPost = ({ user }) => {
         placeholder="キャプションを入力"
         value={caption}
         onChange={(e) => setCaption(e.target.value)}
+        style={{ display: 'block', margin: '10px 0' }}
       />
-      <button
-        onClick={handleUpload}
-        disabled={isUploading}
-      >
+      <button onClick={handleUpload} disabled={isUploading}>
         {isUploading ? 'アップロード中...' : '投稿する'}
       </button>
-      {message && <p className="message">{message}</p>}
+      {message && <p>{message}</p>}
     </div>
   );
 };
 
-// Post feed component
+// 投稿フィードコンポーネント
 const Feed = () => {
   const [posts, setPosts] = useState([]);
 
   useEffect(() => {
-    // Firestoreから投稿をリアルタイムで取得
     const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
       const fetchedPosts = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       }));
-      // Sort posts by creation time in memory
-      fetchedPosts.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
       setPosts(fetchedPosts);
     });
 
-    // クリーンアップ
     return () => unsubscribe();
   }, []);
 
   return (
-    <div className="feed-container">
+    <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '20px' }}>
       <h2>投稿フィード</h2>
       {posts.length > 0 ? (
         posts.map((post) => (
-          <div key={post.id} className="post-card">
+          <div key={post.id} style={{ border: '1px solid #eee', margin: '10px', padding: '10px', borderRadius: '8px' }}>
             <img
               src={post.imageUrl}
               alt={post.caption}
+              style={{ width: '100%', maxWidth: '400px', height: 'auto', borderRadius: '4px' }}
             />
             <p style={{ textAlign: 'left', fontWeight: 'bold' }}>
-              {/* FirebaseのUIDからユーザー名を取得する場合は別途実装が必要 */}
-              {post.userId ? `User: ${post.userId.substring(0, 6)}...` : 'Unknown User'}
+              {post.displayName || '匿名ユーザー'} {/* displayNameを表示 */}
             </p>
-            <p className="caption">{post.caption}</p>
+            <p style={{ textAlign: 'left' }}>{post.caption}</p>
           </div>
         ))
       ) : (
-        <p className="no-posts">まだ投稿がありません。</p>
+        <p>まだ投稿がありません。</p>
       )}
     </div>
   );
@@ -269,11 +270,9 @@ function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Listen for auth state changes
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
-    // Clean up listener on component unmount
     return () => unsubscribe();
   }, []);
 
@@ -281,30 +280,25 @@ function App() {
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100vh',
-      backgroundColor: '#222'
+      minHeight: '100vh',
+      backgroundColor: '#222',
+      padding: '20px 0'
     }}>
-      <h1 style={{ color: '#fff', textAlign: 'center' }}>📸 Photo Share App</h1>
-      <div style={{ backgroundColor: '#2e2e2e', padding: '40px', borderRadius: '12px' }}>
-        {user ? (
-          <>
-            <p style={{ color: '#fff' }}>ログイン中: <b>{user.email}</b></p>
-            <button onClick={handleLogout} style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer', borderRadius: '5px', border: 'none', backgroundColor: '#f44336', color: 'white' }}>
-              ログアウト
-            </button>
-            <hr style={{ margin: '20px 0', borderColor: '#444' }} />
-            <UploadPost user={user} />
-            <hr style={{ margin: '20px 0', borderColor: '#444' }} />
-            <Feed />
-          </>
-        ) : (
-          <Login setUser={setUser} />
-        )}
-      </div>
+      <h1 style={{ color: '#fff', textAlign: 'center', margin: '20px 0' }}>📸 Photo Share App</h1>
+      {user ? (
+        <MainContent user={user} />
+      ) : (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100%'
+        }}>
+          <Login />
+        </div>
+      )}
     </div>
   );
 }
 
-export default App;6
+export default App;
