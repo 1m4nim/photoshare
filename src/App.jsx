@@ -5,7 +5,8 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signOut
+  signOut,
+  updateProfile // Firebase AuthからupdateProfileをインポート
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -22,8 +23,9 @@ import {
   uploadBytes,
   getDownloadURL
 } from 'firebase/storage';
+import { format } from 'date-fns';
 
-// Firebaseプロジェクトの設定をここに追加
+// Firebaseプロジェクトの設定
 const firebaseConfig = {
   apiKey: "AIzaSyBvHNVYiPDtm1K4hKjzFAEenjjPGj6836w",
   authDomain: "photoshare-566d9.firebaseapp.com",
@@ -43,6 +45,7 @@ const storage = getStorage(app);
 const Login = ({ setUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState(''); // 新しく追加
   const [message, setMessage] = useState('');
 
   // ログイン処理
@@ -63,7 +66,9 @@ const Login = ({ setUser }) => {
         setMessage("パスワードは6文字以上にする必要があります。");
         return;
       }
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // 登録成功後、ユーザープロフィールを更新
+      await updateProfile(userCredential.user, { displayName });
       setMessage("新規登録しました！");
     } catch (error) {
       setMessage(`登録失敗: ${error.message}`);
@@ -74,6 +79,13 @@ const Login = ({ setUser }) => {
   return (
     <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px', width: '300px', backgroundColor: '#fff' }}>
       <h2 style={{color:"black"}}>ログイン / 新規登録</h2>
+      <input
+        type="text"
+        placeholder="表示名（新規登録時のみ）"
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        style={{ display: 'block', margin: '10px 0', width: '100%', padding: '8px' }}
+      />
       <input
         type="email"
         placeholder="メールアドレス"
@@ -131,6 +143,7 @@ const UploadPost = ({ user }) => {
       // 2. Firestoreに投稿情報を保存
       await addDoc(collection(db, 'posts'), {
         userId: user.uid,
+        displayName: user.displayName || '匿名ユーザー', // 投稿者の名前を追加
         imageUrl: downloadURL,
         caption: caption,
         createdAt: serverTimestamp(),
@@ -171,7 +184,6 @@ const Feed = () => {
   const [posts, setPosts] = useState([]);
 
   useEffect(() => {
-    // Firestoreから投稿をリアルタイムで取得
     const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
       const fetchedPosts = snapshot.docs.map(doc => ({
@@ -181,7 +193,6 @@ const Feed = () => {
       setPosts(fetchedPosts);
     });
 
-    // クリーンアップ
     return () => unsubscribe();
   }, []);
 
@@ -197,8 +208,7 @@ const Feed = () => {
               style={{ width: '100%', maxWidth: '400px', height: 'auto', borderRadius: '4px' }}
             />
             <p style={{ textAlign: 'left', fontWeight: 'bold' }}>
-              {/* FirebaseのUIDからユーザー名を取得する場合は別途実装が必要 */}
-              {post.userId ? `User: ${post.userId.substring(0, 6)}...` : 'Unknown User'}
+              {post.displayName || '匿名ユーザー'} {/* displayNameを表示 */}
             </p>
             <p style={{ textAlign: 'left' }}>{post.caption}</p>
           </div>
@@ -210,6 +220,52 @@ const Feed = () => {
   );
 };
 
+// ログイン後のコンテンツを管理するコンポーネント
+const MainContent = ({ user }) => {
+  const handleLogout = () => {
+    signOut(auth);
+  };
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      width: '100%',
+      maxWidth: '600px',
+      margin: '0 auto',
+      backgroundColor: '#2e2e2e',
+      padding: '40px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)'
+    }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        marginBottom: '20px'
+      }}>
+        <p style={{ color: '#fff' }}>ログイン中: <b>{user.displayName || user.email}</b></p>
+        <button onClick={handleLogout} style={{
+          padding: '10px 20px',
+          fontSize: '16px',
+          cursor: 'pointer',
+          borderRadius: '5px',
+          border: 'none',
+          backgroundColor: '#f44336',
+          color: 'white',
+          fontWeight: 'bold'
+        }}>
+          ログアウト
+        </button>
+      </div>
+      <hr style={{ margin: '20px 0', borderColor: '#444' }} />
+      <UploadPost user={user} />
+      <hr style={{ margin: '20px 0', borderColor: '#444' }} />
+      <Feed />
+    </div>
+  );
+};
+
+// メインアプリケーションコンポーネント
 function App() {
   const [user, setUser] = useState(null);
 
@@ -220,38 +276,29 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleLogout = () => {
-    signOut(auth);
-  };
-
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100vh',
-      backgroundColor: '#222'
+      minHeight: '100vh',
+      backgroundColor: '#222',
+      padding: '20px 0'
     }}>
-      <h1 style={{ color: '#fff', textAlign: 'center' }}>📸 Photo Share App</h1>
-      <div style={{ backgroundColor: '#2e2e2e', padding: '40px', borderRadius: '12px' }}>
-        {user ? (
-          <>
-            <p style={{ color: '#fff' }}>ログイン中: <b>{user.email}</b></p>
-            <button onClick={handleLogout} style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer', borderRadius: '5px', border: 'none', backgroundColor: '#f44336', color: 'white' }}>
-              ログアウト
-            </button>
-            <hr style={{ margin: '20px 0', borderColor: '#444' }} />
-            <UploadPost user={user} />
-            <hr style={{ margin: '20px 0', borderColor: '#444' }} />
-            <Feed />
-          </>
-        ) : (
+      <h1 style={{ color: '#fff', textAlign: 'center', margin: '20px 0' }}>📸 Photo Share App</h1>
+      {user ? (
+        <MainContent user={user} />
+      ) : (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100%'
+        }}>
           <Login setUser={setUser} />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
-export default App;
+export default App;6
